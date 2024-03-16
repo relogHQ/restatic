@@ -3,7 +3,7 @@ package server
 import (
 	"fmt"
 	"html/template"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -75,7 +75,7 @@ func toFInfos(infos []os.DirEntry, pwd string) []*fInfo {
 	return fInfos
 }
 
-func toDInfo(info os.FileInfo, pwd string) *dInfo {
+func toDInfo(_ os.FileInfo, pwd string) *dInfo {
 	rPath, err := filepath.Rel(config.Directory, pwd)
 	if err != nil {
 		return nil
@@ -127,14 +127,20 @@ func writeFile(w http.ResponseWriter, path string, info os.FileInfo) {
 	}
 	defer f.Close()
 
-	b, err := ioutil.ReadAll(f)
+	fileName := info.Name()
+	fileSize := info.Size()
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
+	w.Header().Set("Content-Length", fmt.Sprint(fileSize))
+
+	w.WriteHeader(http.StatusOK)
+
+	_, err = io.Copy(w, f)
 	if err != nil {
 		write500(w)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
-	w.Write(b)
 }
 
 func (f fsHandler) ServeHTTP(w http.ResponseWriter, request *http.Request) {
